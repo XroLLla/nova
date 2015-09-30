@@ -330,6 +330,10 @@ class ConductorManager(manager.Manager):
         result = self.db.compute_node_delete(context, node['id'])
         return jsonutils.to_primitive(result)
 
+    def compute_node_stats_upsert(self, context, values):
+        result = self.db.compute_node_stats_upsert(context, values)
+        return jsonutils.to_primitive(result)
+
     @messaging.expected_exceptions(exception.ServiceNotFound)
     def service_update(self, context, service, values):
         svc = self.db.service_update(context, service['id'], values)
@@ -609,7 +613,13 @@ class ComputeTaskManager(base.Base):
                      task_state=task_state,
                      expected_task_state=task_states.MIGRATING,),
                 ex, request_spec, self.db)
-
+            migration_obj = objects.Migration.get_by_instance_and_status(
+                context,
+                instance['uuid'],
+                'in progress')
+            if migration_obj:
+                migration_obj.status = 'error'
+                migration_obj.save()
         try:
             live_migrate.execute(context, instance, destination,
                              block_migration, disk_over_commit)
@@ -624,7 +634,7 @@ class ComputeTaskManager(base.Base):
                 exception.HypervisorUnavailable,
                 exception.InstanceInvalidState,
                 exception.MigrationPreCheckError,
-                exception.LiveMigrationWithOldNovaNotSafe) as ex:
+                exception.LiveMigrationWithOldNovaNotSafe) as ex:  
             with excutils.save_and_reraise_exception():
                 # TODO(johngarbutt) - eventually need instance actions here
                 _set_vm_state(context, instance, ex, instance.vm_state)

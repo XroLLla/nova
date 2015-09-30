@@ -1041,6 +1041,16 @@ class ComputeAPI(object):
                 block_device_mapping=block_device_mapping, node=node,
                 limits=limits)
 
+    def get_host_mac_addr(self, ctxt, host):
+        version = '3.0'
+        cctxt = self.client.prepare(server=host, version=version)
+        return cctxt.call(ctxt, 'get_host_mac_addr')
+
+    def suspend_host(self, ctxt, host):
+        version = '3.0'
+        cctxt = self.client.prepare(server=host, version=version)
+        cctxt.cast(ctxt, 'suspend_host')
+
     def quiesce_instance(self, ctxt, instance):
         version = self._compat_ver('4.0', '3.39')
         cctxt = self.client.prepare(server=_compute_host(None, instance),

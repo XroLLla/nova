@@ -33,6 +33,7 @@ import sys
 import time
 import traceback
 import uuid
+import netifaces
 
 from cinderclient import exceptions as cinder_exception
 import eventlet.event
@@ -6528,6 +6529,23 @@ class ComputeManager(manager.Manager):
                     instance.cleaned = True
                 with utils.temporary_mutation(context, read_deleted='yes'):
                     instance.save()
+ 
+    def get_host_mac_addr(self, context):
+        my_ip = CONF.my_ip
+        mac_addr = None
+        for ifs in netifaces.interfaces():
+            interface = netifaces.ifaddresses(ifs)
+            af_link = interface.get(netifaces.AF_LINK)
+            af_inet = interface.get(netifaces.AF_INET)
+            if af_inet:
+                for inet in af_inet:
+                    if inet.get('addr') == my_ip:
+                        for link in af_link:
+                            mac_addr = link['addr']
+        return mac_addr
+
+    def suspend_host(self, context):
+        utils.execute('systemctl', 'suspend', run_as_root=True)
 
     @messaging.expected_exceptions(exception.InstanceQuiesceNotSupported,
                                    exception.NovaException,

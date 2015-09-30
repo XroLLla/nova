@@ -70,6 +70,7 @@ class ComputeNode(base.NovaPersistentObject, base.NovaObject,
         # pci_stats field in the database
         'pci_device_pools': fields.ObjectField('PciDevicePoolList',
                                                nullable=True),
+        'suspend_state': fields.StringField(nullable=False),
         }
 
     obj_relationships = {

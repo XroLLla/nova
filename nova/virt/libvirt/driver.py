@@ -4181,6 +4181,27 @@ class LibvirtDriver(driver.ComputeDriver):
                   {'xml': xml}, instance=instance)
         return xml
 
+    def _lookup_by_uuid(self, instance_uuid):
+        """Retrieve libvirt domain object given an instance uuid.
+
+        All libvirt error handling should be handled in this method and
+        relevant nova exceptions should be raised in response.
+
+        """
+        try:
+            return self._conn.lookupByUUIDString(instance_uuid)
+        except libvirt.libvirtError as ex:
+            error_code = ex.get_error_code()
+            if error_code == libvirt.VIR_ERR_NO_DOMAIN:
+                raise exception.InstanceNotFound(instance_id=instance_uuid)
+
+            msg = (_("Error from libvirt while looking up %(instance_uuid)s: "
+                     "[Error Code %(error_code)s] %(ex)s")
+                   % {'instance_id': instance_uuid,
+                      'error_code': error_code,
+                      'ex': ex})
+            raise exception.NovaException(msg)
+
     def get_info(self, instance):
         """Retrieve information from libvirt for a specific instance name.
 
@@ -4210,6 +4231,44 @@ class LibvirtDriver(driver.ComputeDriver):
                                      num_cpu=dom_info[3],
                                      cpu_time_ns=dom_info[4],
                                      id=virt_dom.ID())
+
+    def get_info_by_uuid(self, instance_uuid):
+        virt_dom = self._lookup_by_uuid(instance_uuid)
+        block_devices = 0
+        try:
+            dom_info = virt_dom.info()
+            # If domain is running then we can collect block device info.
+            if dom_info[0] == 1:
+                xml = virt_dom.XMLDesc(0)
+                tree = etree.fromstring(xml)
+                block_devices_dev = []
+                for target in tree.findall('devices/disk/target'):
+                    dev = target.get('dev')
+                    if dev not in block_devices_dev:
+                        block_devices_dev.append(dev)
+                for dev in block_devices_dev:
+                    stats = virt_dom.blockStats(dev)
+                    if stats:
+                        # Summarize wreq and rreq.
+                        block_devices += stats[0] + stats[2]
+
+        except libvirt.libvirtError as ex:
+            error_code = ex.get_error_code()
+            if error_code == libvirt.VIR_ERR_NO_DOMAIN:
+                raise exception.InstanceNotFound(instance_id=instance_uuid)
+
+            msg = (_('Error from libvirt while getting domain info for '
+                     '%(instance_name)s: [Error Code %(error_code)s] %(ex)s') %
+                   {'instance_name': instance_uuid,
+                    'error_code': error_code,
+                    'ex': ex})
+            raise exception.NovaException(msg)
+
+        return {'mem': dom_info[2]//1024,
+                'cpu_time': dom_info[4],
+                'libvirt_id': virt_dom.ID(),
+                'instance_uuid': instance_uuid,
+                'block_dev_iops': block_devices}
 
     def _create_domain_setup_lxc(self, instance, image_meta,
                                  block_device_info, disk_info):
@@ -4890,6 +4949,7 @@ class LibvirtDriver(driver.ComputeDriver):
         data["local_gb"] = disk_info_dict['total']
         data["vcpus_used"] = self._get_vcpu_used()
         data["memory_mb_used"] = self._get_memory_mb_used()
+        data["real_memory_mb_used"] = data["memory_mb_used"]
         data["local_gb_used"] = disk_info_dict['used']
         data["hypervisor_type"] = self._host.get_driver_type()
         data["hypervisor_version"] = self._host.get_version()

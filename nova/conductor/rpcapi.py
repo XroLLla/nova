@@ -270,6 +270,10 @@ class ConductorAPI(object):
         cctxt = self.client.prepare()
         return cctxt.call(context, 'compute_node_delete', node=node_p)
 
+    def compute_node_stats_upsert(self, context, values):
+        cctxt = self.client.prepare()
+        return cctxt.call(context, 'compute_node_stats_upsert', values=values)
+
     def service_update(self, context, service, values):
         service_p = jsonutils.to_primitive(service)
 

@@ -160,6 +160,9 @@ class LocalAPI(object):
     def compute_node_delete(self, context, node):
         return self._manager.compute_node_delete(context, node)
 
+    def compute_node_stats_upsert(self, context, values):
+        return self._manager.compute_node_stats_upsert(context, values)
+
     def service_update(self, context, service, values):
         return self._manager.service_update(context, service, values)
 

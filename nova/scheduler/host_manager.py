@@ -56,16 +56,18 @@ host_manager_opts = [
                   'ImagePropertiesFilter',
                   'ServerGroupAntiAffinityFilter',
                   'ServerGroupAffinityFilter',
+                  'SuspendFilter',
+                  'MaxMigrationsFilter'
                   ],
                 help='Which filter class names to use for filtering hosts '
-                      'when not specified in the request.'),
+                     'when not specified in the request.'),
     cfg.ListOpt('scheduler_weight_classes',
                 default=['nova.scheduler.weights.all_weighers'],
                 help='Which weight class names to use for weighing hosts'),
     cfg.BoolOpt('scheduler_tracks_instance_changes',
-               default=True,
-               help='Determines if the Scheduler tracks changes to instances '
-                    'to help with its filtering decisions.'),
+                default=True,
+                help='Determines if the Scheduler tracks changes to instances '
+                     'to help with its filtering decisions.'),
 ]
 
 CONF = cfg.CONF
@@ -153,6 +155,7 @@ class HostState(object):
         self.instances = {}
 
         self.updated = None
+        self.suspend_state = None
         if compute:
             self.update_from_compute_node(compute)
 
@@ -236,6 +239,7 @@ class HostState(object):
         self.num_instances = int(self.stats.get('num_instances', 0))
 
         self.num_io_ops = int(self.stats.get('io_workload', 0))
+        self.suspend_state = compute.get('suspend_state')
 
         # update metrics
         self._update_metrics_from_compute_node(compute)
@@ -522,7 +526,7 @@ class HostManager(object):
         return self.weight_handler.get_weighed_objects(self.weighers,
                 hosts, weight_properties)
 
-    def get_all_host_states(self, context):
+    def get_all_host_states(self, context, host=None):
         """Returns a list of HostStates that represents all the hosts
         the HostManager knows about. Also, each of the consumable resources
         in HostState are pre-populated and adjusted based on data in the db.
@@ -532,7 +536,13 @@ class HostManager(object):
                         for service in objects.ServiceList.get_by_binary(
                             context, 'nova-compute')}
         # Get resource usage across the available compute nodes:
-        compute_nodes = objects.ComputeNodeList.get_all(context)
+
+        # Fix (alexstav) Should get by hostname
+        if hostname:
+            compute_nodes = objects.ComputeNodeList.get_all_by_host(context,
+                                                                    host)
+        else:
+            compute_nodes = objects.ComputeNodeList.get_all(context)
         seen_nodes = set()
         for compute in compute_nodes:
             service = service_refs.get(compute.host)
