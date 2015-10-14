@@ -613,8 +613,11 @@ def compute_node_get_all_by_host(context, host, use_slave=False):
 
 
 @require_admin_context
-def compute_node_get_all(context):
-    return model_query(context, models.ComputeNode, read_deleted='no').all()
+def compute_node_get_all(context, read_suspended=False):
+    compute_nodes = model_query(context, models.ComputeNode, read_deleted='no')
+    if read_suspended == 'only':
+        compute_nodes = compute_nodes.filter_by(suspend_state='suspended')
+    return compute_nodes.all()
 
 
 @require_admin_context
@@ -687,7 +690,8 @@ def compute_node_stats_upsert(context, values):
 
 
 @require_admin_context
-def get_compute_node_stats(context, use_mean=False, read_suspended=False):
+def get_compute_node_stats(context, use_mean=False, read_suspended=False,
+                           nodes=None):
     session = get_session()
     res = None
     if use_mean:
@@ -724,10 +728,10 @@ def get_compute_node_stats(context, use_mean=False, read_suspended=False):
         res = res.filter(models.ComputeNode.suspend_state == "not suspended")
     if read_suspended:
         pass
-    if read_suspended == "only":
-        res = res.filter(models.ComputeNode.suspend_state == "suspended")
     if read_suspended == 'suspending':
         res = res.filter(models.ComputeNode.suspend_state == "suspending")
+    if nodes:
+        res = res.filter(models.ComputeNode.hypervisor_hostname.in_(nodes))
     if use_mean:
         res = res.group_by(models.ComputeNodeStats.compute_id,
                            models.ComputeNodeStats.memory_total,
@@ -743,6 +747,60 @@ def get_compute_node_stats(context, use_mean=False, read_suspended=False):
         compute_nodes.append(dict((field, x[idx])
                              for idx, field in enumerate(fields)))
     return compute_nodes
+
+
+@require_admin_context
+def get_compute_nodes_ha(context):
+    session = get_session()
+    nodes = session.query(models.ComputeNode.hypervisor_hostname)\
+        .filter(models.ComputeNode.deleted == 0).all()
+    node_ha = session.query(
+        models.AggregateHost.host, models.Aggregate.name,
+        models.AggregateMetadata.value)\
+        .join(models.Aggregate,
+              models.AggregateHost.aggregate_id == models.Aggregate.id)\
+        .outerjoin(
+            models.AggregateMetadata,
+            models.Aggregate.id == models.AggregateMetadata.aggregate_id)\
+        .filter(and_(models.AggregateHost.deleted == 0,
+                or_(models.AggregateMetadata.key == 'availability_zone',
+                    models.AggregateMetadata.key is None))).all()
+    LOG.debug(node_ha)
+    nodes_ha = []
+    for node in node_ha:
+        nodes_ha.append({'host': node[0], 'ha': node[1],
+                         'az': node[2], 'passes': True})
+    for node in nodes:
+        if not any([x['host'] == node[0] for x in nodes_ha]):
+            nodes_ha.append({'host': node[0], 'passes': True})
+    return nodes_ha
+
+
+@require_admin_context
+def lb_rule_create(context, values):
+    lb_rule = models.LoadBalancerRule()
+    lb_rule.update(values)
+    lb_rule.save()
+    return lb_rule
+
+
+@require_admin_context
+def lb_rule_get_all(context):
+    session = get_session()
+    with session.begin():
+        return model_query(context, models.LoadBalancerRule,
+                           session=session, read_deleted='no').all()
+
+
+@require_admin_context
+def lb_rule_delete(context, rule_id):
+    session = get_session()
+    with session.begin():
+        result = model_query(context, models.LoadBalancerRule,
+                             session=session).filter_by(id=rule_id).\
+                 soft_delete(synchronize_session=False)
+        if not result:
+            raise Exception('LoadBalancer Rule not found')
 
 
 @require_admin_context

@@ -445,7 +445,7 @@ class HostManager(object):
         return good_filters
 
     def get_filtered_hosts(self, hosts, filter_properties,
-            filter_class_names=None, index=0):
+                           filter_class_names=None, index=0):
         """Filter hosts and return only ones passing all filters."""
 
         def _strip_ignore_hosts(host_map, hosts_to_ignore):
@@ -526,7 +526,7 @@ class HostManager(object):
         return self.weight_handler.get_weighed_objects(self.weighers,
                 hosts, weight_properties)
 
-    def get_all_host_states(self, context, host=None):
+    def get_all_host_states(self, context, hypervisor_hostname=None):
         """Returns a list of HostStates that represents all the hosts
         the HostManager knows about. Also, each of the consumable resources
         in HostState are pre-populated and adjusted based on data in the db.
@@ -538,9 +538,9 @@ class HostManager(object):
         # Get resource usage across the available compute nodes:
 
         # Fix (alexstav) Should get by hostname
-        if hostname:
-            compute_nodes = objects.ComputeNodeList.get_all_by_host(context,
-                                                                    host)
+        if hypervisor_hostname:
+            compute_nodes = objects.ComputeNodeList.get_all_by_host(
+                context, hypervisor_hostname)
         else:
             compute_nodes = objects.ComputeNodeList.get_all(context)
         seen_nodes = set()
@@ -580,6 +580,9 @@ class HostManager(object):
             del self.host_state_map[state_key]
 
         return self.host_state_map.itervalues()
+
+    def get_grouped_hosts(self, context):
+        pass
 
     def _add_instance_info(self, context, compute, host_state):
         """Adds the host instance info to the host_state object.

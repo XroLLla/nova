@@ -187,6 +187,15 @@ class ComputeNodeStats(BASE, NovaBase):
                                     primaryjoin=compute_id == ComputeNode.id)
 
 
+class LoadBalancerRule(BASE, NovaBase):
+    __tablename__ = 'loadbalancer_rules'
+    __table_args__ = ()
+    id = Column(Integer, primary_key=True)
+    type = Column(Text)
+    value = Column(Text)
+    allow = Column(Boolean)
+
+
 class Certificate(BASE, NovaBase):
     """Represents a x509 certificate."""
     __tablename__ = 'certificates'

@@ -199,14 +199,14 @@ def compute_node_get_by_host_and_nodename(context, host, nodename):
     return IMPL.compute_node_get_by_host_and_nodename(context, host, nodename)
 
 
-def compute_node_get_all(context):
+def compute_node_get_all(context, read_suspended=False):
     """Get all computeNodes.
 
     :param context: The security context
 
     :returns: List of dictionaries each containing compute node properties
     """
-    return IMPL.compute_node_get_all(context)
+    return IMPL.compute_node_get_all(context, read_suspended=read_suspended)
 
 
 def compute_node_get_all_by_host(context, host, use_slave=False):
@@ -274,13 +274,27 @@ def compute_node_stats_upsert(context, values):
     return IMPL.compute_node_stats_upsert(context, values)
 
 
-def get_compute_node_stats(context, use_mean=False, read_suspended=False):
+def get_compute_node_stats(context, use_mean=False, read_suspended=False,
+                           nodes=None):
     return IMPL.get_compute_node_stats(context, use_mean=use_mean,
-                                       read_suspended=read_suspended)
+                                       read_suspended=read_suspended,
+                                       nodes=nodes)
 
 
-def get_instances_stat(context, host):
-    return IMPL.get_instances_stat(context, host)
+def get_compute_nodes_ha(context):
+    return IMPL.get_compute_nodes_ha(context)
+
+
+def lb_rule_create(context, values):
+    return IMPL.lb_rule_create(context, values)
+
+
+def lb_rule_get_all(context):
+    return IMPL.lb_rule_get_all(context)
+
+
+def lb_rule_delete(context, rule_id):
+    return IMPL.lb_rule_delete(context, rule_id)
 
 
 def get_instances_stat(context, host):

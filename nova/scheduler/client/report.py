@@ -43,6 +43,9 @@ class SchedulerReportClient(object):
         else:
             raise exception.ComputeHostNotCreated(name=str(name))
 
+        if 'suspend_state' in updates:
+            del updates['suspend_state']
+
         if 'stats' in updates:
             # NOTE(danms): This is currently pre-serialized for us,
             # which we don't want if we're using the object. So,

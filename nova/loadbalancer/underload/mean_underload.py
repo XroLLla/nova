@@ -14,13 +14,15 @@
 #    under the License.
 
 from nova import db
+from nova import exception
 from nova import objects
 from nova import utils as nova_utils
+from nova.objects.compute_node import ComputeNodeList
 from nova.loadbalancer.underload.base import Base
 from nova.loadbalancer.balancer.minimizeSD import MinimizeSD
 from nova.loadbalancer import utils
 from nova.compute import rpcapi as compute_api
-
+from nova.objects.instance import InstanceList
 from oslo_log import log as logging
 from oslo_config import cfg
 
@@ -48,16 +50,15 @@ CONF.register_opts(lb_opts, 'loadbalancer_mean_underload')
 class MeanUnderload(Base):
 
     def __init__(self):
-        self.compute_rpc = compute_api.ComputeAPI()
         self.minimizeSD = MinimizeSD()
 
     def indicate(self, context, **kwargs):
         extra = kwargs.get('extra_info')
         cpu_th = CONF.loadbalancer_mean_underload.threshold_cpu
         memory_th = CONF.loadbalancer_mean_underload.threshold_memory
-        compute_nodes = db.get_compute_node_stats(context, use_mean=True)
+        compute_nodes = utils.get_compute_node_stats(context, use_mean=True)
         if len(compute_nodes) <= 1:
-            self.unsuspend_host(context, extra_info=extra)
+            self.indicate_unsuspend_host(context, extra_info=extra)
             return
 
         instances = []
@@ -71,56 +72,75 @@ class MeanUnderload(Base):
             memory = host_loads[node]['mem']
             cpu = host_loads[node]['cpu']
             if (cpu < cpu_th) or (memory < memory_th):
-                compute_id = filter(lambda x: x['hypervisor_hostname'] == node,
-                                    compute_nodes)[0]['compute_id']
-                LOG.debug('underload is needed')
-                db.compute_node_update(context, compute_id,
-                                       {'suspend_state': 'suspending'})
-                migrated = self.minimizeSD.migrate_all_vms_from_host(context,
-                                                                     node)
-                if migrated:
-                    return True
-                db.compute_node_update(context, compute_id,
-                                       {'suspend_state': 'not suspended'})
-        self.unsuspend_host(context, extra_info=extra)       
-        
-    def unsuspend_host(self, context, extra_info=None):
+                if self.suspend_host(context, node):
+                    return
+        self.indicate_unsuspend_host(context, extra_info=extra)
+
+    def suspend_host(self, context, node):
+        compute_node = ComputeNodeList.get_by_hypervisor(context, node)
+        if not compute_node:
+            raise exception.ComputeHostNotFound(host=node)
+        LOG.debug('underload is needed')
+        db.compute_node_update(context, compute_node[0]['id'],
+                               {'suspend_state': 'suspending'})
+        migrated = self.minimizeSD.migrate_all_vms_from_host(context,
+                                                             node)
+        if migrated:
+            return True
+        else:
+            db.compute_node_update(context, compute_node[0]['id'],
+                                   {'suspend_state': 'not suspended'})
+
+    def indicate_unsuspend_host(self, context, extra_info=None):
         cpu_mean = extra_info.get('cpu_mean')
         ram_mean = extra_info.get('ram_mean')
         unsuspend_cpu = CONF.loadbalancer_mean_underload.unsuspend_cpu
         unsuspend_ram = CONF.loadbalancer_mean_underload.unsuspend_memory
         if cpu_mean > unsuspend_cpu or ram_mean > unsuspend_ram:
-            compute_nodes = db.get_compute_node_stats(context,
-                                                      read_suspended='only')
+            compute_nodes = db.compute_node_get_all(context,
+                                                    read_suspended='only')
             for node in compute_nodes:
-                mac_to_wake = node['mac_to_wake']
-                nova_utils.execute('ether-wake', mac_to_wake, run_as_root=True)
-                db.compute_node_update(context, node['compute_id'],
-                                       {'suspend_state': 'not suspended'})
+                self.unsuspend_host(context, node)
                 return
 
+    def unsuspend_host(self, context, node):
+        mac_to_wake = node['mac_to_wake']
+        nova_utils.execute('ether-wake', mac_to_wake, run_as_root=True)
+        db.compute_node_update(context, node['id'],
+                               {'suspend_state': 'not suspended'})
+
     def host_is_empty(self, context, host):
-        instances = db.get_instances_stat(context, host)
-        if not instances:
+        alive_instances = InstanceList.get_by_filters(
+          context,
+          {'host': host, 'vm_state': 'active', 'deleted': False})
+        shutdown_instances = InstanceList.get_by_filters(
+          context,
+          {'host': host, 'vm_state': 'stopped', 'deleted': False})
+        if not alive_instances and not shutdown_instances:
             return True
         return False
 
     def check_is_all_vms_migrated(self, context):
-        suspended_nodes = db.get_compute_node_stats(
+        suspended_nodes = utils.get_compute_node_stats(
             context,
             read_suspended='suspending')
         for node in suspended_nodes:
+            LOG.debug('Suspending host found: %s' % node)
             active_migrations = objects.migration.MigrationList\
                 .get_in_progress_by_host_and_node(context,
                                                   node['hypervisor_hostname'],
                                                   node['hypervisor_hostname'])
             if active_migrations:
                 LOG.debug('There is some migrations that are in active state')
-                # TODO (alexchadin) Make checking that all vms have been migrated.
+                for migration in active_migrations:
+                  if migration['status'] == 'finished':
+                    self.minimizeSD.confirm_migration(
+                      context,
+                      migration['instace_uuid'])
                 return
             else:
                 if self.host_is_empty(context, node['hypervisor_hostname']):
-                    mac = self.compute_rpc.get_host_mac_addr(
+                    mac = self.compute_rpc.prepare_host_for_suspending(
                         context, node['hypervisor_hostname'])
                     db.compute_node_update(context, node['compute_id'],
                                            {'mac_to_wake': mac})

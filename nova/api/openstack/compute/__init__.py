@@ -21,6 +21,7 @@ WSGI middleware for OpenStack Compute API.
 from oslo_config import cfg
 
 import nova.api.openstack
+from nova.api.openstack.compute import balancer
 from nova.api.openstack.compute import consoles
 from nova.api.openstack.compute import extensions
 from nova.api.openstack.compute import flavors
@@ -95,6 +96,14 @@ class APIRouter(nova.api.openstack.APIRouter):
                             controller=self.resources['flavors'],
                             collection={'detail': 'GET'},
                             member={'action': 'POST'})
+
+        if init_only is None or 'lbrules' in init_only:
+            self.resources['lbrules'] = balancer.create_resource()
+            mapper.resource("lbrule", "lbrules",
+                            controller=self.resources['lbrules'],
+                            collection={'detail': 'GET',
+                                        'action': 'POST',
+                                        'nodes': 'GET'})
 
         if init_only is None or 'image_metadata' in init_only:
             self.resources['image_metadata'] = image_metadata.create_resource()

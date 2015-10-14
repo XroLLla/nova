@@ -17,6 +17,7 @@
 from keystoneclient.v2_0 import client
 
 from nova import context as nova_context
+from nova import db
 from nova import image
 from nova import objects
 from nova.i18n import _
@@ -26,6 +27,7 @@ from nova.scheduler import utils
 from oslo_config import cfg
 
 import math
+import re
 
 auth_options = [
     cfg.StrOpt('admin_user',
@@ -48,10 +50,10 @@ CONF.register_opts(auth_options, 'keystone_authtoken')
 LOG = logging.getLogger(__name__)
 
 nova_client = client.Client(
-    username=CONF.keystone_authtoken.admin_user,
-    password=CONF.keystone_authtoken.admin_password,
-    tenant_name=CONF.keystone_authtoken.admin_tenant_name,
-    auth_url=CONF.keystone_authtoken.auth_uri
+    username='nova',
+    password='nova',
+    tenant_name='service',
+    auth_url='http://controller1:5000/v2.0'
 )
 
 image_api = image.API()
@@ -93,6 +95,34 @@ def get_instance_resources(i):
             'block_dev_iops'] - i['prev_block_dev_iops']
         return instance_resources
     return None
+
+
+def check_string(string, template):
+    pattern = re.compile(template)
+    if pattern.match(string):
+        return True
+    return False
+
+
+def apply_rules(node, rules):
+    result = True
+    for rule in rules:
+        if check_string(node.get(rule['type']), rule['value']):
+            result = rule['allow']
+    return result
+
+
+def get_allowed_hosts(context):
+    rules = db.lb_rule_get_all(context)
+    nodes = db.get_compute_nodes_ha(context)
+    return set(node['host'] for node in nodes if apply_rules(node, rules))
+
+
+def get_compute_node_stats(context, use_mean=False, read_suspended=False):
+    allow_nodes = get_allowed_hosts(context)
+    return db.get_compute_node_stats(context, use_mean=use_mean,
+                                     read_suspended=read_suspended,
+                                     nodes=allow_nodes)
 
 
 def build_filter_properties(context, chosen_instance, nodes):

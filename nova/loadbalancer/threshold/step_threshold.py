@@ -18,6 +18,7 @@ from nova import db
 from nova.i18n import _
 from nova.loadbalancer.threshold import base
 from nova.openstack.common import log as logging
+from nova.loadbalancer import utils
 
 from oslo.config import cfg
 
@@ -42,7 +43,7 @@ class Step_Threshold(base.Base):
         pass
 
     def indicate(self, context):
-        compute_nodes = db.get_compute_node_stats(context)
+        compute_nodes = utils.get_compute_node_stats(context)
         cpu_td = CONF.loadbalancer_step_threshold.cpu_threshold
         memory_td = CONF.loadbalancer_step_threshold.memory_threshold
         LOG.debug(_(cpu_td))

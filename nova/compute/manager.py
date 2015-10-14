@@ -6530,7 +6530,7 @@ class ComputeManager(manager.Manager):
                 with utils.temporary_mutation(context, read_deleted='yes'):
                     instance.save()
  
-    def get_host_mac_addr(self, context):
+    def prepare_host_for_suspending(self, context):
         my_ip = CONF.my_ip
         mac_addr = None
         for ifs in netifaces.interfaces():
@@ -6542,6 +6542,8 @@ class ComputeManager(manager.Manager):
                     if inet.get('addr') == my_ip:
                         for link in af_link:
                             mac_addr = link['addr']
+                            # Set Wake-On-Lan
+                            utils.execute('ethtool', '-s', ifs, 'wol', 'g')
         return mac_addr
 
     def suspend_host(self, context):
