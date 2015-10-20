@@ -19,7 +19,7 @@ scheduler with useful information about availability through the ComputeNode
 model.
 """
 import copy
-import pcutil
+import psutil
 
 from oslo_config import cfg
 from oslo_log import log as logging

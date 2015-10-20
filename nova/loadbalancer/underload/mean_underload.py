@@ -58,7 +58,7 @@ class MeanUnderload(Base):
         memory_th = CONF.loadbalancer_mean_underload.threshold_memory
         compute_nodes = utils.get_compute_node_stats(context, use_mean=True)
         if len(compute_nodes) <= 1:
-            self.indicate_unsuspend_host(context, extra_info=extra)
+            self._indicate_unsuspend_host(context, extra_info=extra)
             return
 
         instances = []
@@ -74,7 +74,7 @@ class MeanUnderload(Base):
             if (cpu < cpu_th) or (memory < memory_th):
                 if self.suspend_host(context, node):
                     return
-        self.indicate_unsuspend_host(context, extra_info=extra)
+        self._indicate_unsuspend_host(context, extra_info=extra)
 
     def suspend_host(self, context, node):
         compute_node = ComputeNodeList.get_by_hypervisor(context, node)
@@ -83,15 +83,13 @@ class MeanUnderload(Base):
         LOG.debug('underload is needed')
         db.compute_node_update(context, compute_node[0]['id'],
                                {'suspend_state': 'suspending'})
-        migrated = self.minimizeSD.migrate_all_vms_from_host(context,
-                                                             node)
-        if migrated:
+        if self.minimizeSD.migrate_all_vms_from_host(context, node):
             return True
         else:
             db.compute_node_update(context, compute_node[0]['id'],
                                    {'suspend_state': 'not suspended'})
 
-    def indicate_unsuspend_host(self, context, extra_info=None):
+    def _indicate_unsuspend_host(self, context, extra_info=None):
         cpu_mean = extra_info.get('cpu_mean')
         ram_mean = extra_info.get('ram_mean')
         unsuspend_cpu = CONF.loadbalancer_mean_underload.unsuspend_cpu
@@ -109,13 +107,13 @@ class MeanUnderload(Base):
         db.compute_node_update(context, node['id'],
                                {'suspend_state': 'not suspended'})
 
-    def host_is_empty(self, context, host):
+    def _host_is_empty(self, context, host):
         alive_instances = InstanceList.get_by_filters(
-          context,
-          {'host': host, 'vm_state': 'active', 'deleted': False})
+            context,
+            {'host': host, 'vm_state': 'active', 'deleted': False})
         shutdown_instances = InstanceList.get_by_filters(
-          context,
-          {'host': host, 'vm_state': 'stopped', 'deleted': False})
+            context,
+            {'host': host, 'vm_state': 'stopped', 'deleted': False})
         if not alive_instances and not shutdown_instances:
             return True
         return False
@@ -133,13 +131,13 @@ class MeanUnderload(Base):
             if active_migrations:
                 LOG.debug('There is some migrations that are in active state')
                 for migration in active_migrations:
-                  if migration['status'] == 'finished':
-                    self.minimizeSD.confirm_migration(
-                      context,
-                      migration['instace_uuid'])
+                    if migration['status'] == 'finished':
+                        self.minimizeSD.confirm_migration(
+                            context,
+                            migration['instace_uuid'])
                 return
             else:
-                if self.host_is_empty(context, node['hypervisor_hostname']):
+                if self._host_is_empty(context, node['hypervisor_hostname']):
                     mac = self.compute_rpc.prepare_host_for_suspending(
                         context, node['hypervisor_hostname'])
                     db.compute_node_update(context, node['compute_id'],
@@ -149,6 +147,9 @@ class MeanUnderload(Base):
                     db.compute_node_update(context, node['compute_id'],
                                            {'suspend_state': 'suspended'})
                 else:
-                    self.minimizeSD.migrate_all_vms_from_host(
-                        context,
-                        node['hypervisor_hostname'])
+                    if not self.minimizeSD.migrate_all_vms_from_host(
+                            context,
+                            node['hypervisor_hostname']):
+                        db.compute_node_update(context, node['compute_id'],
+                                               {'suspend_state':
+                                                'not suspended'})

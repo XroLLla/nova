@@ -18,10 +18,10 @@ from nova import db
 from nova.loadbalancer import utils as lb_utils
 from nova.loadbalancer.balancer.base import BaseBalancer
 from nova.i18n import _
-from nova.openstack.common import log as logging
+from oslo_log import log as logging
 from nova.objects.instance import InstanceList
 from copy import deepcopy
-from oslo.config import cfg
+from oslo_config import cfg
 
 
 lb_opts = [
@@ -79,8 +79,10 @@ class MinimizeSD(BaseBalancer):
             context,
             {'host': host, 'vm_state': 'stopped', 'deleted': False})
         for instance in shutdown_instances:
-            self.migrate(context, instance['uuid'], cold_migration=True)
-            migrated = True
+            if self.migrate(context,
+                            instance['uuid'],
+                            cold_migration=True):
+                migrated = True
         for instance in instances_stat:
             for node in compute_nodes:
                 h_hostname = node['hypervisor_hostname']

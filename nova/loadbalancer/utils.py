@@ -29,24 +29,8 @@ from oslo_config import cfg
 import math
 import re
 
-auth_options = [
-    cfg.StrOpt('admin_user',
-               default='nova',
-               help='Keystone account username'),
-    cfg.StrOpt('admin_password',
-               default='nova',
-               help='Keystone account password'),
-    cfg.StrOpt('admin_tenant_name',
-               default='service',
-               help='Tenant name'),
-    cfg.StrOpt('auth_uri',
-               default='http://controller:5000/v2.0',
-               help='Public Identity API endpoint'),
-]
-
 
 CONF = cfg.CONF
-CONF.register_opts(auth_options, 'keystone_authtoken')
 LOG = logging.getLogger(__name__)
 
 nova_client = client.Client(

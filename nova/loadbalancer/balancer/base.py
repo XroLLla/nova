@@ -15,10 +15,11 @@
 
 from oslo.config import cfg
 
+from nova import exception
 from nova.api.openstack import common
 from nova.compute import api as compute_api
 from nova.loadbalancer import utils as lb_utils
-from nova.openstack.common import importutils
+from oslo_utils import importutils
 from nova.scheduler import filters
 
 
@@ -64,7 +65,11 @@ class BaseBalancer(object):
             instance = common.get_instance(self.compute_api,
                                            lb_utils.get_context(),
                                            instance_uuid, want_objects=True)
-            self.compute_api.resize(lb_utils.get_context(), instance)
+            try:
+                self.compute_api.resize(lb_utils.get_context(), instance)
+            except exception.NoValidHost:
+                return False
+            return True
 
     def confirm_migration(self, context, instance_uuid):
         instance = self.compute_api.get(lb_utils.get_context(), instance_uuid,
