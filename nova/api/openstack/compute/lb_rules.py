@@ -16,28 +16,26 @@
 
 import webob
 
-from nova import db
-from nova.api.openstack.compute.views import balancer as balancer_views
-from nova.api.openstack import wsgi
-from nova.loadbalancer.underload.mean_underload import MeanUnderload
 from nova import exception
+from nova.api.openstack.compute.views import lb_rules as balancer_views
+from nova.api.openstack import wsgi
+from nova.loadbalancer import manager
 from nova.i18n import _
-from nova.objects.compute_node import ComputeNodeList
 from webob import exc
 
 
 class Controller(wsgi.Controller):
-    """Flavor controller for the OpenStack API."""
+    """Rule controller for the OpenStack API."""
 
     _view_builder_class = balancer_views.ViewBuilder
 
     def index(self, req):
-        """Return all flavors in brief."""
+        """Return all rules in brief."""
         rules = self._get_rules(req)
         return self._view_builder.index(req, rules)
 
     def detail(self, req):
-        """Return all flavors in detail."""
+        """Return all rules in detail."""
         limited_flavors = self._get_flavors(req)
         req.cache_db_flavors(limited_flavors)
         return self._view_builder.detail(req, limited_flavors)
@@ -58,7 +56,7 @@ class Controller(wsgi.Controller):
         context = req.environ['nova.context']
         """Destroys a server."""
         try:
-            db.lb_rule_delete(context, id)
+            manager.LoadBalancer().lb_rule_delete(context, id)
         except exception.NotFound:
             msg = _("Rule could not be found")
             raise exc.HTTPNotFound(explanation=msg)
@@ -78,35 +76,15 @@ class Controller(wsgi.Controller):
             if not isinstance(rule['allow'], bool):
                 msg = _("allow key should be bool type.")
                 raise exc.HTTPBadRequest(explanation=msg)
-            lb_rule = db.lb_rule_create(context, rule)
+            lb_rule = manager.LoadBalancer().lb_rule_create(context, rule)
             return dict(lb_rules=lb_rule)
 
     def _get_rules(self, req):
-        """Helper function that returns a list of flavor dicts."""
+        """Helper function that returns a list of rule dicts."""
 
         context = req.environ['nova.context']
-        rules = db.lb_rule_get_all(context)
+        rules = manager.LoadBalancer().lb_rule_get_all(context)
         return rules
-
-    @wsgi.action('suspend_host')
-    def suspend_host(self, req, body):
-        context = req.environ['nova.context']
-        host = body['suspend_host']['host']
-        try:
-            MeanUnderload().suspend_host(context, host)
-        except exception.ComputeHostNotFound, e:
-            raise exc.HTTPBadRequest(explanation=e.format_message())
-
-    @wsgi.action('unsuspend_host')
-    def unsuspend_host(self, req, body):
-        context = req.environ['nova.context']
-        hypervisor_hostname = body['unsuspend_host']['host']
-        node = ComputeNodeList.get_by_hypervisor(context, hypervisor_hostname)
-        if node:
-            MeanUnderload().unsuspend_host(context, node[0])
-        else:
-            msg = 'Requested node not found'
-            raise exc.HTTPBadRequest(explanation=msg)
 
 
 def create_resource():

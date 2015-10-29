@@ -274,6 +274,10 @@ def compute_node_stats_upsert(context, values):
     return IMPL.compute_node_stats_upsert(context, values)
 
 
+def clear_compute_stats(context, date):
+    return IMPL.clear_compute_stats(context, date)
+
+
 def get_compute_node_stats(context, use_mean=False, read_suspended=False,
                            nodes=None):
     return IMPL.get_compute_node_stats(context, use_mean=use_mean,
