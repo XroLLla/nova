@@ -18,11 +18,11 @@ from nova import exception
 from nova import objects
 from nova import utils as nova_utils
 from nova.objects.compute_node import ComputeNodeList
+from nova.objects.instance import InstanceList
 from nova.loadbalancer.underload.base import Base
 from nova.loadbalancer.balancer.minimizeSD import MinimizeSD
 from nova.loadbalancer import utils
 from nova.compute import rpcapi as compute_api
-from nova.objects.instance import InstanceList
 from oslo_log import log as logging
 from oslo_config import cfg
 

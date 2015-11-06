@@ -64,7 +64,7 @@ class BaseBalancer(object):
         else:
             instance = common.get_instance(self.compute_api,
                                            lb_utils.get_context(),
-                                           instance_uuid, want_objects=True)
+                                           instance_uuid)
             try:
                 self.compute_api.resize(lb_utils.get_context(), instance)
             except exception.NoValidHost:
