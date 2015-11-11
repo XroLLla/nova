@@ -87,7 +87,7 @@ class MeanUnderload(Base):
             return True
         else:
             db.compute_node_update(context, compute_node[0]['id'],
-                                   {'suspend_state': 'not suspended'})
+                                   {'suspend_state': 'active'})
 
     def _indicate_unsuspend_host(self, context, extra_info=None):
         cpu_mean = extra_info.get('cpu_mean')
@@ -105,7 +105,7 @@ class MeanUnderload(Base):
         mac_to_wake = node['mac_to_wake']
         nova_utils.execute('ether-wake', mac_to_wake, run_as_root=True)
         db.compute_node_update(context, node['id'],
-                               {'suspend_state': 'not suspended'})
+                               {'suspend_state': 'active'})
 
     def _host_is_empty(self, context, host):
         alive_instances = InstanceList.get_by_filters(
@@ -152,4 +152,4 @@ class MeanUnderload(Base):
                             node['hypervisor_hostname']):
                         db.compute_node_update(context, node['compute_id'],
                                                {'suspend_state':
-                                                'not suspended'})
+                                                'active'})
