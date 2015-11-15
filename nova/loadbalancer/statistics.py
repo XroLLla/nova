@@ -1,7 +1,7 @@
 import psycopg2
 import json
 from psycopg2.extras import RealDictCursor
-import dateutil.parser
+from dateutil import parser
 import math
 
 from datetime import datetime
