@@ -152,6 +152,7 @@ class FakeDriver(driver.ComputeDriver):
                                                    hv_type.FAKE,
                                                    vm_mode.HVM)]),
           'numa_topology': None,
+          'real_memory_mb_used': self.memory_mb
           }
         self._mounts = {}
         self._interfaces = {}
@@ -378,9 +379,9 @@ class FakeDriver(driver.ComputeDriver):
 
     def get_host_cpu_stats(self):
         stats = {'kernel': 5664160000000L,
-                'idle': 1592705190000000L,
-                'user': 26728850000000L,
-                'iowait': 6121490000000L}
+                 'idle': 1592705190000000L,
+                 'user': 26728850000000L,
+                 'iowait': 6121490000000L}
         stats['frequency'] = 800
         return stats
 

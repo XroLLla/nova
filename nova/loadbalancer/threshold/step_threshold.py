@@ -17,7 +17,7 @@
 from nova import db
 from nova.i18n import _
 from nova.loadbalancer.threshold import base
-from nova.openstack.common import log as logging
+from oslo_log import log as logging
 from nova.loadbalancer import utils
 
 from oslo.config import cfg

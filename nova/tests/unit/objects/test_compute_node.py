@@ -76,6 +76,8 @@ fake_compute_node = {
     'numa_topology': fake_numa_topology_db_format,
     'supported_instances': fake_supported_hv_specs_db_format,
     'pci_stats': fake_pci,
+    'suspend_state': 'active',
+    'mac_to_wake': 'MAC'
     }
 # FIXME(sbauza) : For compatibility checking, to be removed once we are sure
 # that all computes are running latest DB version with host field in it.

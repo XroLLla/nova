@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from nova.compute import rpcapi as compute_api
 from nova import db
 from nova import exception
 from nova import objects
@@ -51,6 +52,7 @@ class MeanUnderload(Base):
 
     def __init__(self):
         self.minimizeSD = MinimizeSD()
+        self.compute_rpc = compute_api.ComputeAPI()
 
     def indicate(self, context, **kwargs):
         extra = kwargs.get('extra_info')
@@ -77,9 +79,13 @@ class MeanUnderload(Base):
         self._indicate_unsuspend_host(context, extra_info=extra)
 
     def suspend_host(self, context, node):
+        if node not in utils.get_allowed_hosts(context):
+            raise exception.ComputeHostForbiddenByRule(host=node)
         compute_node = ComputeNodeList.get_by_hypervisor(context, node)
         if not compute_node:
             raise exception.ComputeHostNotFound(host=node)
+        if compute_node[0]['suspend_state'] != 'active':
+            raise exception.ComputeHostWrongState(host=node)
         LOG.debug('underload is needed')
         db.compute_node_update(context, compute_node[0]['id'],
                                {'suspend_state': 'suspending'})
@@ -102,6 +108,9 @@ class MeanUnderload(Base):
                 return
 
     def unsuspend_host(self, context, node):
+        if node['suspend_state'] != 'suspended':
+            raise exception.ComputeHostWrongState(
+                host=node['hypervisor_hostname'])
         mac_to_wake = node['mac_to_wake']
         nova_utils.execute('ether-wake', mac_to_wake, run_as_root=True)
         db.compute_node_update(context, node['id'],
@@ -129,12 +138,12 @@ class MeanUnderload(Base):
                                                   node['hypervisor_hostname'],
                                                   node['hypervisor_hostname'])
             if active_migrations:
-                LOG.debug('There is some migrations that are in active state')
                 for migration in active_migrations:
                     if migration['status'] == 'finished':
                         self.minimizeSD.confirm_migration(
                             context,
-                            migration['instace_uuid'])
+                            migration['instance_uuid'])
+                LOG.debug('There is some migrations that are in active state')
                 return
             else:
                 if self._host_is_empty(context, node['hypervisor_hostname']):

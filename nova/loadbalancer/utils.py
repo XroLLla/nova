@@ -33,18 +33,16 @@ import re
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-nova_client = client.Client(
-    username='nova',
-    password='nova',
-    tenant_name='service',
-    auth_url='http://controller1:5000/v2.0'
-)
-
 image_api = image.API()
 
 
 def get_context():
-    creds = nova_client
+    creds = client.Client(
+        username='nova',
+        password='nova',
+        tenant_name='service',
+        auth_url='http://controller:5000/v2.0'
+        )
     s_catalog = creds.service_catalog.catalog['serviceCatalog']
     ctx = nova_context.RequestContext(user_id=creds.user_id,
                                       is_admin=True,
@@ -99,11 +97,14 @@ def apply_rules(node, rules):
 def get_allowed_hosts(context):
     rules = db.lb_rule_get_all(context)
     nodes = db.get_compute_nodes_ha(context)
-    return set(node['host'] for node in nodes if apply_rules(node, rules))
+    return list(node['host'] for node in nodes if apply_rules(node, rules))
 
 
-def get_compute_node_stats(context, use_mean=False, read_suspended=False):
+def get_compute_node_stats(context, use_mean=False, read_suspended=False,
+                           include_hosts=[]):
     allow_nodes = get_allowed_hosts(context)
+    if include_hosts:
+        allow_nodes.extend(include_hosts)
     return db.get_compute_node_stats(context, use_mean=use_mean,
                                      read_suspended=read_suspended,
                                      nodes=allow_nodes)
@@ -197,17 +198,13 @@ def fill_compute_stats(instances, compute_nodes, sum_instance=False):
                 host_loads[host]['mem'] = node['memory_used']
                 host_loads[host]['cpu'] = node['cpu_used_percent']
     return host_loads
- 
- 
+
+
 def calculate_host_loads(compute_nodes, compute_stats):
     host_loads = compute_stats
     for node in compute_nodes:
         host_loads[node['hypervisor_hostname']]['mem'] \
-            = float(host_loads[node['hypervisor_hostname']]['mem'])
-        host_loads[node['hypervisor_hostname']]['mem'] \
             /= float(node['memory_total'])
-        host_loads[node['hypervisor_hostname']]['cpu'] \
-            = float(host_loads[node['hypervisor_hostname']]['cpu'])
         host_loads[node['hypervisor_hostname']]['cpu'] \
             /= 100.00
     return host_loads
@@ -222,7 +219,7 @@ def calculate_sd(hosts, param):
         hosts, 0)) / len(hosts)
     sd = math.sqrt(variaton)
     LOG.debug("SD %(param)s: %(sd)f", {'sd': sd, 'param': param})
-    return sd
+    return (sd, mean)
 
 
 def calculate_cpu(instance, compute_nodes=None):
@@ -231,6 +228,10 @@ def calculate_cpu(instance, compute_nodes=None):
         instance['prev_cpu_time'] = 0
     if instance['prev_cpu_time'] > instance['cpu_time']:
         instance['prev_cpu_time'] = 0
+    if not instance['updated_at']:
+        return 0
+    if not instance['prev_updated_at']:
+        instance['prev_updated_at'] = instance['created_at']
     delta_cpu_time = instance['cpu_time'] - instance['prev_cpu_time']
     delta_time = (instance['updated_at'] - instance['prev_updated_at'])\
         .seconds
