@@ -12717,6 +12717,17 @@ class LibvirtDriverTestCase(test.NoDBTestCase):
                               cpumodel.POLICY_FORBID]),
                          set([f.policy for f in cpu.features]))
 
+    # def test_get_info_by_uuid_raise_InstanceNotFound(self):
+    #     drv = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+    #     
+    #     def fake_lookup(uuid):
+    #         # if instance_name == instance['name']:
+    #         #     return vdmock
+    #         print uuid
+    #     self.create_fake_libvirt_mock(lookupByUUIDString=fake_lookup)
+    #     
+    #     libvirt_driver.LibvirtDriver.get_info_by_uuid(drv, "FAKE_UUID")
+
 
 class LibvirtVolumeUsageTestCase(test.NoDBTestCase):
     """Test for LibvirtDriver.get_all_volume_usage."""

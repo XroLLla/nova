@@ -4231,7 +4231,7 @@ class LibvirtDriver(driver.ComputeDriver):
                                      num_cpu=dom_info[3],
                                      cpu_time_ns=dom_info[4],
                                      id=virt_dom.ID())
-
+# test
     def get_info_by_uuid(self, instance_uuid):
         virt_dom = self._lookup_by_uuid(instance_uuid)
         block_devices = 0

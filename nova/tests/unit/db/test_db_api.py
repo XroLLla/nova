@@ -6644,6 +6644,7 @@ class LoadBalancerTestCase(DbTestCase, ModelsObjectComparatorMixin):
             node=compute_node_stats2,
             instances=[]))
         nodes_stats = db.get_compute_node_stats(self.ctxt, use_mean=True)
+        print nodes_stats
         self.assertEqual(len(nodes_stats), 1)
         self.assertEqual(nodes_stats[0]['cpu_used_percent'], 35)
 
@@ -6681,6 +6682,23 @@ class LoadBalancerTestCase(DbTestCase, ModelsObjectComparatorMixin):
                                                   vm_state='active')
         instances_stat = db.get_instances_stat(self.ctxt, instance['host'])
         self.assertEqual(len(instances_stat), 1)
+
+    def test_clear_compute_stats_clean_db(self):
+        compute_node_stats2 = copy.copy(self.compute_node_stats)
+        compute_node_stats2.update(dict(created_at=datetime.datetime(2000,
+                                                                     1, 1,
+                                                                     hour=1)))
+        db.compute_node_stats_upsert(self.ctxt, dict(
+            node=compute_node_stats2,
+            instances=[]))
+        delta_time = datetime.datetime.now() - datetime.timedelta(
+            seconds=11100)
+        node_stats = db.get_compute_node_stats(self.ctxt)
+        self.assertEqual(len(node_stats), 1)
+        db.clear_compute_stats(self.ctxt, delta_time)
+        node_stats = db.get_compute_node_stats(self.ctxt)
+        self.assertEqual(len(node_stats), 0)
+
 
 class ComputeNodeTestCase(test.TestCase, ModelsObjectComparatorMixin):
 

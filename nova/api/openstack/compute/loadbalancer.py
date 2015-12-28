@@ -43,7 +43,7 @@ class Controller(wsgi.Controller):
         context = req.environ['nova.context']
         host = body['suspend_host']['host']
         try:
-            manager.LoadBalancer().suspend_host(context, host)
+            return manager.LoadBalancer().suspend_host(context, host)
         except (exception.ComputeHostNotFound,
                 exception.ComputeHostWrongState,
                 exception.ComputeHostForbiddenByRule) as e:
@@ -56,7 +56,7 @@ class Controller(wsgi.Controller):
         node = ComputeNodeList.get_by_hypervisor(context, hypervisor_hostname)
         if node:
             try:
-                manager.LoadBalancer().unsuspend_host(context, node[0])
+                return manager.LoadBalancer().unsuspend_host(context, node[0])
             except exception.ComputeHostWrongState as e:
                 raise exc.HTTPBadRequest(explanation=e.format_message())
         else:
